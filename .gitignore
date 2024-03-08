@@ -9,3 +9,4 @@ dist
 gen
 /bin
 /node_modules
+firebase-debug.log
