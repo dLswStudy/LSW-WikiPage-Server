@@ -8,11 +8,35 @@ const collectionPath = 'Posts'
 function postRouter(firestore) {
     //위키페이지 목록 가져오기
     router.get('/', async (req, res) => {
-        logger.info("getPosts");
-
-        const snapshot = await firestore.collection(collectionPath).orderBy('index', 'asc').get();
+        const snapshot = await firestore.collection(collectionPath).orderBy('index', 'desc').get();
         const posts = snapshot.docs.map(doc => ({...doc.data()}));
         res.status(200).send(posts);
+    });
+    //위키페이지 목록 가져오기 - 무한스크롤
+    router.get('/infiscroll', async (req, res) => {
+        const pageSize = req.query.pageSize ? parseInt(req.query.pageSize) : 10; // 페이지당 항목 수, 기본값 10
+        const lastVisibleIndex = req.query.lastVisibleIndex ? parseInt(req.query.lastVisibleIndex) : null; // 클라이언트에서 전달받은 마지막 문서의 index
+
+        let query = firestore.collection(collectionPath).orderBy('index', 'desc').limit(pageSize);
+
+        if (lastVisibleIndex) {
+            // lastVisibleIndex를 기준으로 건너뛸 문서 수를 계산하지 않고,
+            // 해당 index를 가진 문서를 찾아 그 다음부터 데이터를 로드합니다.
+            const lastVisibleDoc = await firestore.collection(collectionPath).where('index', '<=', lastVisibleIndex).orderBy('index', 'desc').limit(1).get();
+            if (!lastVisibleDoc.empty) {
+                const lastDoc = lastVisibleDoc.docs[0];
+                query = query.startAfter(lastDoc);
+            }
+        }
+
+        try {
+            const snapshot = await query.get();
+            const posts = snapshot.docs.map(doc => doc.data());
+            res.status(200).json(posts);
+        } catch (error) {
+            console.error("Error fetching posts:", error);
+            res.status(500).send("Failed to fetch posts");
+        }
     });
     //위키페이지 등록하기
     router.post('/', async (req, res) => {
